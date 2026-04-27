@@ -1,11 +1,13 @@
 # Data
 data/raw/*
 !data/raw/.gitkeep
+!data/raw/median_rent_hdb.csv
 data/processed/*
 !data/processed/.gitkeep
 data/processed/.http_cache/
 **/.http_cache/
 data/reference/planning_areas.geojson
+!data/reference/planning_areas.geojson
 
 # Python
 .venv/

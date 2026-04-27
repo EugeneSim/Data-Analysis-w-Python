@@ -76,6 +76,7 @@ from singapore_eda.viz import (
 
 _ROOT = Path(__file__).resolve().parent
 _DEFAULT_FIXTURE = _ROOT / "tests" / "fixtures" / "hdb_sample.csv"
+_ALT_BIG_CSV = _ROOT / "data" / "data" / "sales_data.csv"
 _RENT_CAND = _ROOT / str(DEFAULT_RENT_CSV)
 _FIX_RENT = _ROOT / "tests" / "fixtures" / "median_rent_sample.csv"
 _DEFAULT_RENT = str(_RENT_CAND) if _RENT_CAND.is_file() else str(_FIX_RENT)
@@ -127,6 +128,9 @@ def _bootstrap_resale_if_missing(default_path: str) -> str:
     p = Path(default_path)
     if p.exists():
         return default_path
+    if _ALT_BIG_CSV.exists():
+        st.sidebar.info(f"Using bundled resale CSV: `{_ALT_BIG_CSV}`")
+        return str(_ALT_BIG_CSV)
 
     auto_fetch = _default_bool_env(
         "SINGAPORE_EDA_AUTO_DOWNLOAD_ON_MISSING",
