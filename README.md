@@ -81,6 +81,26 @@ Then: `make test` · `hdb-download -o data/raw/hdb_resale_2017_onwards.csv` (or 
 
 9. Add the same Streamlit URL into `quarto/index.qmd` under the "Static site vs interactive app" section so users on Pages can jump to the live app.
 
+### Streamlit deployment notes (lessons learned)
+
+These defaults now reflect issues encountered during deployment and the fixes applied in-repo:
+
+- **Pin Python for Cloud builds:** keep both [`runtime.txt`](runtime.txt) and [`.python-version`](.python-version) set to `3.12`. This avoids unsupported runtime combinations where dependencies (for example `pyarrow`) may fall back to source builds.
+- **Dependency files:** Streamlit installs Python deps from [`requirements.txt`](requirements.txt). Keep `packages.txt` for apt/system packages only; do **not** put pip specifiers there.
+- **CSV schema guardrails:** the app expects HDB-like resale columns (at least `month`, `resale_price`). If you point the sidebar to a non-HDB CSV, the app now warns clearly and avoids silent bad fallbacks.
+- **Fallback order:** when the default raw resale file is missing, the app tries auto-download (if enabled), then safe built-in alternatives, and uses tiny fixtures only as a last resort.
+- **Map and rent auto-bootstrap:** optional Cloud toggles can auto-fetch full planning-area GeoJSON and official median-rent CSV so **Map & blocks** and **Rental yield** do not stay on minimal fixtures.
+
+Recommended Streamlit Cloud secrets (copy from [`.streamlit/secrets.toml.example`](.streamlit/secrets.toml.example)):
+
+```toml
+SINGAPORE_EDA_AUTO_DOWNLOAD_ON_MISSING = "1"
+SINGAPORE_EDA_BOOTSTRAP_MAX_ROWS = "20000"
+SINGAPORE_EDA_AUTO_DOWNLOAD_RENT_ON_MISSING = "1"
+SINGAPORE_EDA_RENT_BOOTSTRAP_MAX_ROWS = "200000"
+SINGAPORE_EDA_AUTO_FETCH_GEO_ON_TINY = "1"
+```
+
 ## Production: data.gov.sg limits, cache, health API, ops UI
 
 Official **per-10-second** limits (see [`API rate limits`](https://guide.data.gov.sg/developer-guide/api-overview/api-rate-limits)) depend on whether you use an API key and its **tier**:
