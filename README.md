@@ -55,7 +55,7 @@ Then: `make test` · `hdb-download -o data/raw/hdb_resale_2017_onwards.csv` (or 
 ## Live demo (two URLs)
 
 - **GitHub Pages** (static report only): enable [`.github/workflows/publish-quarto.yml`](.github/workflows/publish-quarto.yml) and set **Settings → Pages** to **GitHub Actions**. URL shape: `https://<user>.github.io/<repo>/`.
-- **Streamlit Community Cloud** (interactive app): main file `streamlit_app.py`; use [`packages.txt`](packages.txt) or `pip install -e .`. Set secrets in the Cloud UI (e.g. `DATA_GOV_SG_API_KEY`) as in [`.streamlit/secrets.toml.example`](.streamlit/secrets.toml.example). List the Cloud app URL in this README next to the Pages URL.
+- **Streamlit Community Cloud** (interactive app): main file `streamlit_app.py`; Python dependencies are in [`requirements.txt`](requirements.txt) (`-e .`) and project metadata in [`pyproject.toml`](pyproject.toml). Set secrets in the Cloud UI (e.g. `DATA_GOV_SG_API_KEY`) as in [`.streamlit/secrets.toml.example`](.streamlit/secrets.toml.example). List the Cloud app URL in this README next to the Pages URL.
 
 ### Publish checklist (GitHub Pages + Streamlit Cloud)
 
