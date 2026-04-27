@@ -1,3 +1,0 @@
-# Apt packages for Streamlit Community Cloud.
-# Keep this file for system dependencies only.
-# Python dependencies belong in requirements.txt / pyproject.toml.
