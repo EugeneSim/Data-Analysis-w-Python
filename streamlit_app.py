@@ -10,6 +10,7 @@ from typing import Any
 import networkx as nx
 import pandas as pd
 import plotly.graph_objects as go
+import requests
 import streamlit as st
 from streamlit_folium import st_folium
 
@@ -24,6 +25,8 @@ from singapore_eda.constants import (
     DEFAULT_RENT_CSV,
     HDB_CITATION_URL,
     HDB_MEDIAN_RENT_CITATION_URL,
+    HDB_MEDIAN_RENT_RESOURCE_ID,
+    PLANNING_AREA_GEOJSON_POLL_URL,
 )
 from singapore_eda.display_table import (
     block_table_for_display,
@@ -36,6 +39,7 @@ from singapore_eda.display_table import (
 from singapore_eda.eip import eip_match_stats
 from singapore_eda.features import model_design_subset
 from singapore_eda.forecasting import backtest_rmse, monthly_median_price
+from singapore_eda.gov_http import get_gov_client
 from singapore_eda.graph_analytics import (
     correlation_community_table,
     correlation_edges_dataframe,
@@ -53,6 +57,7 @@ from singapore_eda.mapviz import (
 )
 from singapore_eda.pipeline import load_enriched
 from singapore_eda.rent_cache import age_hours, rent_csv_is_fresh
+from singapore_eda.rent_ingest import download_median_rent
 from singapore_eda.rental_yields import gross_yield_table
 from singapore_eda.stats import (
     numeric_correlation,
@@ -156,6 +161,78 @@ def _bootstrap_resale_if_missing(default_path: str) -> str:
             "Set `SINGAPORE_EDA_AUTO_DOWNLOAD_ON_MISSING=1` to auto-fetch data."
         )
         return str(_DEFAULT_FIXTURE)
+    return default_path
+
+
+def _bootstrap_rent_if_missing(default_path: str) -> str:
+    p = Path(default_path)
+    if p.exists():
+        return default_path
+
+    auto_fetch = _default_bool_env(
+        "SINGAPORE_EDA_AUTO_DOWNLOAD_RENT_ON_MISSING",
+        cloud_default=True,
+        local_default=False,
+    )
+    if auto_fetch:
+        rid = (_setting("HDB_MEDIAN_RENT_RESOURCE_ID") or HDB_MEDIAN_RENT_RESOURCE_ID).strip()
+        max_rows_raw = _setting("SINGAPORE_EDA_RENT_BOOTSTRAP_MAX_ROWS") or "200000"
+        try:
+            max_rows = max(1000, int(str(max_rows_raw).strip()))
+        except ValueError:
+            max_rows = 200000
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            n = download_median_rent(
+                p,
+                rid,
+                max_rows=max_rows,
+                skip_if_fresh_hours=24.0,
+            )
+            st.sidebar.success(f"Fetched {n:,} rent rows from data.gov.sg.")
+            if p.exists():
+                return str(p)
+        except (OSError, ValueError, RuntimeError) as ex:
+            st.sidebar.warning(f"Rent auto-download failed; using fixture fallback. ({ex})")
+
+    if _FIX_RENT.exists():
+        return str(_FIX_RENT)
+    return default_path
+
+
+def _bootstrap_geo_if_tiny_or_missing(default_path: str) -> str:
+    p = Path(default_path) if default_path else Path("")
+    is_tiny = p.exists() and p.name == _TINY_GEO.name
+    if p.exists() and not is_tiny:
+        return str(p)
+
+    auto_fetch = _default_bool_env(
+        "SINGAPORE_EDA_AUTO_FETCH_GEO_ON_TINY",
+        cloud_default=True,
+        local_default=False,
+    )
+    if auto_fetch:
+        try:
+            body = get_gov_client().get_json(
+                PLANNING_AREA_GEOJSON_POLL_URL,
+                timeout=90,
+                use_cache=False,
+                use_file_pace=True,
+            )
+            if body.get("code") != 0:
+                raise RuntimeError(str(body.get("errMsg") or body.get("errorMsg") or "poll failed"))
+            blob_url = (body.get("data") or {}).get("url")
+            if not blob_url:
+                raise RuntimeError("poll-download response missing URL")
+            r = requests.get(str(blob_url), timeout=180)
+            r.raise_for_status()
+            _PLANNING_GEO.parent.mkdir(parents=True, exist_ok=True)
+            _PLANNING_GEO.write_bytes(r.content)
+            st.sidebar.success("Fetched full planning-area GeoJSON.")
+            return str(_PLANNING_GEO)
+        except (OSError, ValueError, RuntimeError, requests.RequestException) as ex:
+            st.sidebar.warning(f"Geo auto-fetch failed; keeping current GeoJSON. ({ex})")
+
     return default_path
 
 
@@ -420,12 +497,14 @@ def main() -> None:
 
     default = os.environ.get("SINGAPORE_EDA_CSV", str(DEFAULT_RAW_CSV))
     default = _bootstrap_resale_if_missing(default)
+    rent_default = _bootstrap_rent_if_missing(str(_DEFAULT_RENT))
+    geo_default = _bootstrap_geo_if_tiny_or_missing(_default_geo())
     use_path = st.sidebar.text_input("Resale CSV path", value=default)
     rent_path = st.sidebar.text_input(
         "Median rent CSV (for yields)",
-        value=str(_DEFAULT_RENT),
+        value=rent_default,
     )
-    geo_path = st.sidebar.text_input("Planning-area GeoJSON (map)", value=_default_geo())
+    geo_path = st.sidebar.text_input("Planning-area GeoJSON (map)", value=geo_default)
     corr_thr = st.sidebar.slider("Graph min |correlation|", 0.0, 0.99, 0.2, 0.05)
 
     try:
@@ -718,16 +797,22 @@ quarters, not 2017-only data.
             try:
                 ytab = gross_yield_table(df, Path(rent_path))
                 ytab = ytab.sort_values("quarter", ascending=False)
-                _why(
-                    "Annualised gross yield (%) for quarter × town × flat type matched rows.",
-                    "Users can benchmark income-return levels across segments and time with "
-                    "consistent rent/resale cohort alignment.",
-                )
-                st.dataframe(
-                    gross_yield_table_for_display(ytab),
-                    width="stretch",
-                    height=400,
-                )
+                if ytab.empty:
+                    st.warning(
+                        "No matched rent/resale rows after join on quarter, town, and flat type. "
+                        "Use the official full rent extract or check path/time overlap."
+                    )
+                else:
+                    _why(
+                        "Annualised gross yield (%) for quarter × town × flat type matched rows.",
+                        "Users can benchmark income-return levels across segments and time with "
+                        "consistent rent/resale cohort alignment.",
+                    )
+                    st.dataframe(
+                        gross_yield_table_for_display(ytab),
+                        width="stretch",
+                        height=400,
+                    )
             except Exception as ex:  # noqa: BLE001
                 st.warning(str(ex))
         else:
