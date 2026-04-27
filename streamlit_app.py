@@ -78,12 +78,71 @@ _PLANNING_GEO = _ROOT / "data" / "reference" / "planning_areas.geojson"
 _TINY_GEO = _ROOT / "tests" / "fixtures" / "planning_areas_tiny.geojson"
 
 
+def _is_truthy(v: str | None) -> bool:
+    if v is None:
+        return False
+    return str(v).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _on_streamlit_cloud() -> bool:
+    # Streamlit Cloud exposes this in hosted apps.
+    return _is_truthy(os.environ.get("STREAMLIT_SHARING_MODE"))
+
+
+def _default_bool_env(name: str, cloud_default: bool, local_default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is not None:
+        return _is_truthy(raw)
+    return cloud_default if _on_streamlit_cloud() else local_default
+
+
 def _default_geo() -> str:
     if _PLANNING_GEO.exists():
         return str(_PLANNING_GEO)
     if _TINY_GEO.exists():
         return str(_TINY_GEO)
     return ""
+
+
+def _bootstrap_resale_if_missing(default_path: str) -> str:
+    p = Path(default_path)
+    if p.exists():
+        return default_path
+
+    auto_fetch = _default_bool_env(
+        "SINGAPORE_EDA_AUTO_DOWNLOAD_ON_MISSING",
+        cloud_default=True,
+        local_default=False,
+    )
+    if auto_fetch:
+        max_rows_raw = os.environ.get("SINGAPORE_EDA_BOOTSTRAP_MAX_ROWS", "20000")
+        try:
+            max_rows = max(1000, int(str(max_rows_raw).strip()))
+        except ValueError:
+            max_rows = 20000
+        try:
+            from singapore_eda.download_data import download_hdb_resale
+
+            p.parent.mkdir(parents=True, exist_ok=True)
+            n = download_hdb_resale(
+                p,
+                max_rows=max_rows,
+                latest_first=True,
+                skip_if_fresh_hours=24.0,
+            )
+            st.sidebar.success(f"Fetched {n:,} resale rows from data.gov.sg.")
+            if p.exists():
+                return str(p)
+        except (OSError, ValueError, RuntimeError) as ex:
+            st.sidebar.warning(f"Auto-download failed; using fixture fallback. ({ex})")
+
+    if _DEFAULT_FIXTURE.exists():
+        st.sidebar.info(
+            "Using fallback fixture (small sample). "
+            "Set `SINGAPORE_EDA_AUTO_DOWNLOAD_ON_MISSING=1` to auto-fetch data."
+        )
+        return str(_DEFAULT_FIXTURE)
+    return default_path
 
 
 def _ols_coef_table(model: Any, top_n: int = 12) -> pd.DataFrame:
@@ -346,8 +405,7 @@ def main() -> None:
     )
 
     default = os.environ.get("SINGAPORE_EDA_CSV", str(DEFAULT_RAW_CSV))
-    if not Path(default).exists() and _DEFAULT_FIXTURE.exists():
-        default = str(_DEFAULT_FIXTURE)
+    default = _bootstrap_resale_if_missing(default)
     use_path = st.sidebar.text_input("Resale CSV path", value=default)
     rent_path = st.sidebar.text_input(
         "Median rent CSV (for yields)",
