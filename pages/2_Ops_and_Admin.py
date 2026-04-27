@@ -92,8 +92,8 @@ st.markdown(
 | `SINGAPORE_EDA_MIN_INTERVAL_FILE_SEC` | Override file / poll-download spacing only |
 | `SINGAPORE_EDA_MIN_INTERVAL_SEC` | Override **both** paces (legacy single knob) |
 | `SINGAPORE_EDA_SKIP_DOWNLOAD_IF_FRESH_HOURS` | Skip CSV download if file younger than H hours |
-| `SINGAPORE_EDA_CHECK_NEW_DATA` | With skip-fresh: re-download if CKAN `total` grew (see `*.meta.json` next to CSV) |
-| `SINGAPORE_EDA_TOWN_COVERAGE` | Streamlit OLS: fraction of rows to cover with named towns (default `0.8`; `1` = all towns) |
+| `SINGAPORE_EDA_CHECK_NEW_DATA` | Re-download on CKAN `total` growth (with skip-fresh) |
+| `SINGAPORE_EDA_TOWN_COVERAGE` | OLS town coverage fraction (`0.8` default; `1` keeps all) |
 | `SINGAPORE_EDA_GEO_SKIP_IF_FRESH_DAYS` | Skip GeoJSON if file younger than D days |
 | `SINGAPORE_EDA_HTTP_CACHE_ENABLED` | `0` to disable on-disk response cache |
 | `SINGAPORE_EDA_HTTP_CACHE_DIR` | Where JSON GET responses are stored |
