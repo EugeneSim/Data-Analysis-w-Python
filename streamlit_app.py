@@ -82,6 +82,7 @@ _FIX_RENT = _ROOT / "tests" / "fixtures" / "median_rent_sample.csv"
 _DEFAULT_RENT = str(_RENT_CAND) if _RENT_CAND.is_file() else str(_FIX_RENT)
 _PLANNING_GEO = _ROOT / "data" / "reference" / "planning_areas.geojson"
 _TINY_GEO = _ROOT / "tests" / "fixtures" / "planning_areas_tiny.geojson"
+_REQUIRED_RESALE_COLS = {"month", "resale_price"}
 
 
 def _is_truthy(v: str | None) -> bool:
@@ -125,12 +126,29 @@ def _default_geo() -> str:
 
 
 def _bootstrap_resale_if_missing(default_path: str) -> str:
+    def _has_required_cols(p: Path) -> bool:
+        try:
+            cols = pd.read_csv(p, nrows=0).columns
+        except (OSError, ValueError, pd.errors.ParserError):
+            return False
+        norm = {str(c).strip().lower().replace(" ", "_") for c in cols}
+        return _REQUIRED_RESALE_COLS.issubset(norm)
+
     p = Path(default_path)
-    if p.exists():
+    if p.exists() and _has_required_cols(p):
         return default_path
+    if p.exists() and not _has_required_cols(p):
+        st.sidebar.warning(
+            f"CSV at `{p}` does not look like HDB resale data "
+            f"(needs columns: {sorted(_REQUIRED_RESALE_COLS)})."
+        )
     if _ALT_BIG_CSV.exists():
-        st.sidebar.info(f"Using bundled resale CSV: `{_ALT_BIG_CSV}`")
-        return str(_ALT_BIG_CSV)
+        if _has_required_cols(_ALT_BIG_CSV):
+            st.sidebar.info(f"Using bundled resale CSV: `{_ALT_BIG_CSV}`")
+            return str(_ALT_BIG_CSV)
+        st.sidebar.warning(
+            f"Bundled CSV `{_ALT_BIG_CSV}` is not HDB-format; skipping."
+        )
 
     auto_fetch = _default_bool_env(
         "SINGAPORE_EDA_AUTO_DOWNLOAD_ON_MISSING",
@@ -154,8 +172,12 @@ def _bootstrap_resale_if_missing(default_path: str) -> str:
                 skip_if_fresh_hours=24.0,
             )
             st.sidebar.success(f"Fetched {n:,} resale rows from data.gov.sg.")
-            if p.exists():
+            if p.exists() and _has_required_cols(p):
                 return str(p)
+            if p.exists():
+                st.sidebar.warning(
+                    f"Downloaded file `{p}` is missing required HDB columns; falling back."
+                )
         except (OSError, ValueError, RuntimeError) as ex:
             st.sidebar.warning(f"Auto-download failed; using fixture fallback. ({ex})")
 
@@ -264,7 +286,8 @@ def _ols_coef_table(model: Any, top_n: int = 12) -> pd.DataFrame:
     out = pd.DataFrame(rows)
     # Keep continuous drivers first, then strongest remaining terms by magnitude.
     priority = ["floor_area_sqm", "remaining_lease_years", "C(storey_band)"]
-    pri = out[out["term"].str.contains("|".join(priority), regex=True)].copy()
+    pri_mask = out["term"].map(lambda t: any(k in str(t) for k in priority))
+    pri = out[pri_mask].copy()
     rest = out[~out.index.isin(pri.index)].copy()
     rest = rest.sort_values(by="approx_price_change_pct", key=lambda s: s.abs(), ascending=False)
     out2 = pd.concat([pri, rest.head(max(0, top_n - len(pri)))], ignore_index=True)
@@ -515,6 +538,15 @@ def main() -> None:
         df = _load(use_path)
     except FileNotFoundError as e:
         st.error(str(e))
+        st.stop()
+    except KeyError as e:
+        st.error(
+            "Selected CSV is missing required columns for HDB processing "
+            f"(missing: {e}). Please choose an HDB resale CSV."
+        )
+        st.stop()
+    except ValueError as e:
+        st.error(f"Could not parse selected CSV: {e}")
         st.stop()
 
     (
