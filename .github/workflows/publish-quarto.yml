@@ -30,6 +30,8 @@ jobs:
         working-directory: .
         run: |
           python -m pip install -e .
+          # Quarto executes Python chunks through Jupyter and imports PyYAML.
+          python -m pip install "jupyter>=1,<2" "PyYAML>=6,<7"
 
       - name: Setup Quarto
         uses: quarto-dev/quarto-actions/setup@v2
