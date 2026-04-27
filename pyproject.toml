@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "singapore-eda"
+version = "0.1.0"
+description = "End-to-end EDA on Singapore HDB resale data with Streamlit and Quarto report"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Eugene Sim" }]
+dependencies = [
+    "pandas>=2.2,<3",
+    "numpy>=1.26,<3",
+    "plotly>=5.24,<6",
+    "streamlit>=1.40,<2",
+    "streamlit-folium>=0.24,<1",
+    "folium>=0.18,<1",
+    "scipy>=1.14,<2",
+    "statsmodels>=0.14,<1",
+    "pyarrow>=18,<20",
+    "requests>=2.32,<3",
+    "networkx>=3.2,<4",
+    "scikit-learn>=1.5,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.3,<10",
+    "ruff>=0.8,<1",
+    "ipykernel>=6.29,<7",
+]
+api = [
+    "fastapi>=0.115,<0.120",
+    "uvicorn[standard]>=0.32,<0.35",
+]
+geo = [
+    "geopandas>=1.0,<1.1",
+]
+
+[project.scripts]
+hdb-download = "singapore_eda.download_data:main"
+hdb-rent-download = "singapore_eda.rent_ingest:main"
+hdb-resale-merge = "singapore_eda.merge_resale:main"
+singapore-eda-health = "singapore_eda.health_server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"streamlit_app.py" = ["E402"]
+"pages/*.py" = ["E402"]

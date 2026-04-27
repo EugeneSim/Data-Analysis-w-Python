@@ -1,0 +1,100 @@
+---
+title: "HDB resale — exploratory analysis"
+subtitle: "Singapore open data (data.gov.sg)"
+date: "2026-04-24"
+jupyter: python3
+---
+
+## Overview
+
+This static report is generated with [Quarto](https://quarto.org) and the `singapore_eda` package in this repository. The pipeline covers ingestion, cleaning, feature engineering, visualization, and a simple OLS on log median-adjusted features for illustration.
+
+**Data:** [Resale flat prices (registration) from Jan 2017](https://data.gov.sg/datasets/d_8b84c4ee58e3cfc0ece0d773c8ca6abc/view) (HDB, Open Data Licence).
+
+## Pipeline (expanded)
+
+Reference lookups (planning area, mature/young, MRT proxy), optional EIP block stub, **numerology** digit flags (descriptive only), and optional **gross rental yield** sit alongside the core resale EDA. **Unit sun exposure** is not in the public resale CSV; we do not claim façade-level solar loads without further data.
+
+## Pipeline
+
+```{mermaid}
+flowchart LR
+  raw[Raw_CSV] --> clean[clean]
+  rent[Median_rent_CSV] --> yield[Gross_yield]
+  raw --> clean
+  ref[Reference_CSV] --> enrich[geo_join]
+  clean --> features[features]
+  enrich --> features
+  features --> yield
+  features --> app[Streamlit_Quarto]
+  yield --> app
+```
+
+### Ethics and culture
+
+Digit-based flags (e.g. containing 4 or 8) are **mechanical** features for exploration only. They are not measures of individual beliefs; keep language non-stereotyping in any public writeup.
+
+## Reproducible sample (test fixture)
+
+The chunk below uses the same path as `pytest` fixtures so GitHub Pages can render without downloading the full 21MB file.
+
+```{python}
+#| label: sample-summary
+#| echo: true
+import json
+import sys
+from pathlib import Path
+
+ROOT = Path("..").resolve()
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+
+import pandas as pd
+from singapore_eda.clean import clean_hdb
+from singapore_eda.features import add_features, model_design_subset
+from singapore_eda.insights import build_insights
+from singapore_eda.stats import ols_log_price
+
+p = ROOT / "tests" / "fixtures" / "hdb_sample.csv"
+raw = pd.read_csv(p)
+clean = clean_hdb(raw)
+df = add_features(clean, top_towns=10)
+mdl_data = model_design_subset(df)
+if len(mdl_data) >= 10:
+    fit = ols_log_price(mdl_data)
+    summary = build_insights(df, model=fit)
+else:
+    fit = None
+    summary = build_insights(df, model=None)
+
+print(json.dumps(summary, indent=2, default=str))
+```
+
+## Model
+
+We fit a baseline hedonic model on log price:
+
+`log_resale_price ~ floor_area_sqm + remaining_lease_years + C(town_group)`
+
+`town` is grouped into the top 15 markets with the remainder in `OTHER` to keep coefficients interpretable. **Caveat:** this is a teaching baseline; for production use you would add fixed effects, cluster errors by town, and test functional form more carefully.
+
+## Static site vs interactive app
+
+**GitHub Pages** serves this Quarto output as **static HTML** only. The full **interactive** experience (maps, clusters, graph, forecast, rental yield) runs in **Streamlit** — deploy the same repo to [Streamlit Community Cloud](https://streamlit.io/cloud) and link both URLs in the project README. Do not claim that Pages alone runs Python.
+
+After deployment, update this section with your real interactive URL:
+
+- **Interactive dashboard (Streamlit):** `https://<your-app-name>.streamlit.app`
+- **Static report (GitHub Pages):** `https://<your-github-username>.github.io/<your-repo-name>/`
+
+## Glossary (reference layers)
+
+- **EIP / ethnic integration:** Optional block-level join from an in-repo *stub*; use official HDB/SLA context for policy interpretation.
+- **Estate maturity (mature/young):** Illustrative label from a reference CSV, not a government classification.
+- **Gross rental yield:** Rough annualization from median rent vs median resale in aligned strata, not a net yield.
+- **Spatial graph:** Optional GeoJSON *touching* graph between planning areas; requires the `geo` extra (geopandas).
+
+## References
+
+- Open Data Licence: <https://data.gov.sg/open-data-licence>
+- MAS, SGX, and other open datasets are natural extensions for macro or market panels.

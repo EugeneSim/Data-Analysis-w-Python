@@ -1,0 +1,47 @@
+# Data
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/processed/.http_cache/
+**/.http_cache/
+data/reference/planning_areas.geojson
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pip-audit-cache/
+dist/
+build/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Quarto
+_site/
+quarto/_site/
+**/_quarto/
+.quarto/
+*.qmd~
+
+# Env
+.env
+.env.local
