@@ -84,13 +84,27 @@ def _is_truthy(v: str | None) -> bool:
     return str(v).strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _setting(name: str) -> str | None:
+    # Prefer real environment variables, then Streamlit secrets for Cloud deploys.
+    raw = os.environ.get(name)
+    if raw is not None:
+        return raw
+    try:
+        sec = st.secrets.get(name)
+    except (AttributeError, FileNotFoundError, OSError, RuntimeError):
+        sec = None
+    if sec is None:
+        return None
+    return str(sec)
+
+
 def _on_streamlit_cloud() -> bool:
     # Streamlit Cloud exposes this in hosted apps.
     return _is_truthy(os.environ.get("STREAMLIT_SHARING_MODE"))
 
 
 def _default_bool_env(name: str, cloud_default: bool, local_default: bool) -> bool:
-    raw = os.environ.get(name)
+    raw = _setting(name)
     if raw is not None:
         return _is_truthy(raw)
     return cloud_default if _on_streamlit_cloud() else local_default
@@ -115,7 +129,7 @@ def _bootstrap_resale_if_missing(default_path: str) -> str:
         local_default=False,
     )
     if auto_fetch:
-        max_rows_raw = os.environ.get("SINGAPORE_EDA_BOOTSTRAP_MAX_ROWS", "20000")
+        max_rows_raw = _setting("SINGAPORE_EDA_BOOTSTRAP_MAX_ROWS") or "20000"
         try:
             max_rows = max(1000, int(str(max_rows_raw).strip()))
         except ValueError:
