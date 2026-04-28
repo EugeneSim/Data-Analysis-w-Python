@@ -8,6 +8,12 @@ data/processed/.http_cache/
 **/.http_cache/
 data/reference/planning_areas.geojson
 !data/reference/planning_areas.geojson
+data/feedback/*
+!data/feedback/.gitkeep
+models/
+mlruns/
+mlflow.db
+mlflow.db-*
 
 # Python
 .venv/

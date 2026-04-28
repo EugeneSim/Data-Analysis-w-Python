@@ -23,6 +23,134 @@ from singapore_eda.health import run_health  # noqa: E402
 
 st.set_page_config(page_title="Ops & Admin", layout="wide")
 st.title("Ops, health & open-data client")
+st.markdown(
+    """
+<style>
+.block-container {padding-top: 1.0rem; padding-bottom: 1.5rem; max-width: 1240px;}
+h1, h2, h3 {letter-spacing: -0.02em;}
+.ux-hero {
+  border-radius: 16px;
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  background: radial-gradient(circle at 15% 20%, rgba(59, 130, 246, 0.20), rgba(255, 255, 255, 0.98) 40%),
+              linear-gradient(120deg, rgba(37, 99, 235, 0.08), rgba(15, 23, 42, 0.03));
+  padding: 1.05rem 1.15rem;
+  margin: 0.2rem 0 0.9rem 0;
+}
+.ux-hero .eyebrow {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: #1e3a8a;
+  margin-bottom: 0.32rem;
+}
+.ux-hero h3 {
+  margin: 0 0 0.3rem 0;
+  color: #0f172a;
+  font-size: 1.18rem;
+}
+.ux-hero p {
+  margin: 0;
+  color: #334155;
+  line-height: 1.35rem;
+}
+.ux-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 1.0rem 0 0.65rem 0;
+  color: #0f172a;
+}
+.ux-divider .icon {
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+}
+.ux-divider .title {
+  font-size: 1.02rem;
+  font-weight: 680;
+}
+.ux-divider-line {
+  flex: 1;
+  min-width: 40px;
+  border-top: 1px solid rgba(148, 163, 184, 0.45);
+}
+.ux-metric {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: linear-gradient(165deg, rgba(248, 250, 252, 1), rgba(241, 245, 249, 0.85));
+  padding: 0.75rem 0.85rem;
+  min-height: 96px;
+}
+.ux-metric .top {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #334155;
+  font-size: 0.85rem;
+  font-weight: 620;
+  margin-bottom: 0.35rem;
+}
+.ux-metric .val {
+  color: #0f172a;
+  font-size: 1.28rem;
+  font-weight: 760;
+  line-height: 1.25;
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+
+def _hero_card(title: str, subtitle: str, eyebrow: str = "Operations Console") -> None:
+    st.markdown(
+        (
+            "<div class='ux-hero'>"
+            f"<div class='eyebrow'>{eyebrow}</div>"
+            f"<h3>{title}</h3>"
+            f"<p>{subtitle}</p>"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+
+
+def _section_divider(title: str, icon: str = "◉") -> None:
+    st.markdown(
+        (
+            "<div class='ux-divider'>"
+            f"<span class='icon'>{icon}</span>"
+            f"<span class='title'>{title}</span>"
+            "<span class='ux-divider-line'></span>"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+
+
+def _metric_card(label: str, value: str, icon: str) -> None:
+    st.markdown(
+        (
+            "<div class='ux-metric'>"
+            f"<div class='top'><span>{icon}</span><span>{label}</span></div>"
+            f"<div class='val'>{value}</div>"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+
+
+_hero_card(
+    "Operations and Reliability Console",
+    "Monitor health checks, API pacing, cache behavior, and admin controls in a single operational view.",
+    eyebrow="Open Data Ops",
+)
 
 if "ops_unlocked" not in st.session_state:
     st.session_state.ops_unlocked = False
@@ -60,15 +188,15 @@ else:
             st.session_state.ops_unlocked = False
             st.rerun()
 
-st.subheader("Health (imports, disk, optional CKAN probe)")
+_section_divider("Health (imports, disk, optional CKAN probe)", icon="🩺")
 h = run_health()
-st.metric("Status", h.status)
+_metric_card("Status", h.status.upper(), "✅")
 for c in h.checks:
     st.write(f"**{c.name}** — {'ok' if c.ok else 'fail'}: {c.detail}")
 if h.status in ("degraded", "fail"):
     st.caption("Set SINGAPORE_EDA_HEALTH_SKIP_HTTP=1 in CI to skip the CKAN check.")
 
-st.subheader("HTTP client (data.gov.sg / geo) — in-process")
+_section_divider("HTTP client (data.gov.sg / geo) — in-process", icon="🌐")
 st.caption("Pacing follows the official per-10s tables in `gov_limits` (tier + headroom).")
 st.json(pace_config_public())
 m = get_metrics()
@@ -81,6 +209,7 @@ if info.get("enabled") and info.get("path"):
         f"(~{info.get('approx_bytes', 0) // 1024} KiB)"
     )
 
+_section_divider("Environment configuration reference", icon="⚙️")
 st.markdown(
     """
 | Environment variable | Purpose |
@@ -104,7 +233,7 @@ st.markdown(
 )
 
 if st.session_state.get("ops_unlocked") and expected:
-    st.subheader("Cache actions")
+    _section_divider("Cache actions", icon="🧹")
     if st.button("Clear on-disk JSON cache (non-destructive to CSV data)"):
         n = clear_http_cache()
         st.success(f"Removed {n} cache file(s).")

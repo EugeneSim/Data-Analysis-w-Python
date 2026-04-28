@@ -26,8 +26,8 @@ From the repository root, the scripts create `.venv`, install the package, optio
 
 | OS | Command |
 |----|--------|
-| **Windows** | Double-click or run: `run-all.cmd` |
-| **macOS / Linux** | `chmod +x run-all.sh` once, then `./run-all.sh` |
+| **Windows** | Double-click or run: `run-all-machinelearning.cmd` |
+| **macOS / Linux** | `chmod +x run-all-machinelearning.sh` once, then `./run-all-machinelearning.sh` |
 
 - For faster repeat runs, set `RUN_ALL_SKIP_INSTALL=1` to skip dependency bootstrap when your `.venv` is already ready.
 - In the Streamlit UI, the **Project & method** tab states the **problem, data, storage, models, and how users interact** (dashboard / deployment). For a full **planning-area map** (not the two-polygon test fixture), run `python scripts/fetch_reference_geo.py` and set the map path to `data/reference/planning_areas.geojson`.
@@ -42,15 +42,210 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 ```
 
-Then: `make test` · `hdb-download -o data/raw/hdb_resale_2017_onwards.csv` (or `--max-rows 20000` for a faster sample) · `make analysis` or `python scripts/run_analysis.py` · `streamlit run streamlit_app.py`.
+Then: `make test` · `hdb-download -o data/raw/hdb_resale_2017_onwards.csv` (or `--max-rows 20000` for a faster sample) · `hdb-bto-download -o data/reference` · `make analysis` or `python scripts/run_analysis.py --refresh-bto` · `streamlit run streamlit_app.py`.
 
-**Geo (Graph tab, planning-area edges):** `pip install -e ".[geo]"` and run `make fetch-geo` or `scripts/fetch_reference_geo.py` to pull the official [MP2025 planning-area boundary (No Sea)](https://data.gov.sg/datasets/d_2cc750190544007400b2cfd5d7f53209/view) GeoJSON (old static `geo.data.gov.sg` MP14 links are no longer served). **Rent / gross yield:** set `HDB_MEDIAN_RENT_RESOURCE_ID` and `hdb-rent-download -o data/raw/median_rent_hdb.csv`, or use [`tests/fixtures/median_rent_sample.csv`](tests/fixtures/median_rent_sample.csv). Override staleness in the app with `SINGAPORE_EDA_RENT_TTL_HOURS`. Tranche merge and other CLI details: `hdb-download --help`, `hdb-resale-merge --help`.
+## HDB Forecaster V1 (Postgres + Streamlit)
+
+This repository now includes a dedicated V1 regression forecaster path with:
+- **Leakage-safe temporal split** (train/validation/test ordered by transaction month),
+- **LightGBM + XGBoost candidate training** with automatic winner selection by validation holdout performance,
+- **SHAP local explainability** for top prediction drivers,
+- **Prediction interval** from split-conformal absolute-residual calibration (default nominal coverage 0.80),
+- **Optional Postgres curated table write** for a production-style feature store.
+- **Empirical lease time-decay feature** fitted from historical data (captures
+  age/lease effects without forcing literal zero-value end state).
+- **MLflow experiment tracking** (params, metrics, artifacts) via config.
+- **Deepchecks data integrity validation** hook via config.
+- **Feedback loop capture** from Streamlit predictions to local feedback store.
+- **Optional location/accessibility features** when available in enriched data
+  (`planning_area`, `region_ocr`, `mrt_station_count`, `nearest_mrt_km_proxy`).
+- **Leakage-safe lag market features** (`lag_town_median_price`, segment lag medians,
+  and prior transaction-count liquidity proxies).
+
+### Build artifacts
+
+Run either:
+
+```bash
+python scripts/build_forecaster_v1.py --input data/raw/hdb_resale_2017_onwards.csv
+```
+
+or:
+
+```bash
+make forecaster-v1
+```
+
+Artifacts are written to `models/forecaster_v1/`:
+- `model.joblib` (model + feature columns + guardrail bounds),
+- `metadata.json` (metrics, split windows, provenance, feature contract).
+- `train_config.json` (full reproducible training config snapshot).
+- `model_card.md` (run-level model summary, benchmark, and intended-use notes).
+
+### Configuration management
+
+All forecaster hyperparameters and tracking toggles are version-controlled in:
+
+- `configs/forecaster_v1.yaml`
+
+This includes:
+- train split and seed,
+- candidate model list and model-specific hyperparameters,
+- MLflow enablement and experiment name,
+- Deepchecks output settings,
+- feedback storage path and governed feedback materialization paths.
+- MLflow tracking backend now defaults to local SQLite (`sqlite:///mlflow.db`) to avoid deprecated filesystem tracking store warnings.
+
+### One-command ML end-to-end runners
+
+- **macOS / Linux:** `./run-all-machinelearning.sh`
+- **Windows:** `run-all-machinelearning.cmd`
+- Refresh official MRT references: `make fetch-mrt-reference`
+- Fetch official MRT-to-CBD travel times (OneMap auth required): `make fetch-mrt-travel-times`
+  - Local dev: put `ONEMAP_API_EMAIL` and `ONEMAP_API_PASSWORD` in repo-root `.env` (gitignored),
+    or export them in your shell.
+
+What these scripts do:
+- prepare `.venv` and install dependencies,
+- fetch resale/rent data when missing (with fixture fallback),
+- run lint + tests,
+- build forecaster artifacts,
+- run inference smoke-check,
+- run vulnerability audit (`pip-audit` on `requirements.txt`),
+- launch Streamlit unless `ML_OPEN_STREAMLIT=0`.
+- Optional hard gate: set `ML_ENFORCE_NEAR_TERM_GATE=1` to fail the run when near-term promotion gate does not pass.
+
+### Optional Postgres load
+
+To write curated training rows to Postgres before model training:
+
+```bash
+python scripts/build_forecaster_v1.py \
+  --input data/raw/hdb_resale_2017_onwards.csv \
+  --postgres-dsn "postgresql://user:password@localhost:5432/hdb"
+```
+
+### Streamlit usage
+
+After artifacts exist, start the app and use the **Forecaster V1** tab:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+The tab returns:
+- point estimate,
+- p10-p90 uncertainty interval,
+- top SHAP contributors,
+- range warnings when inputs fall outside training bounds.
+- constrained dropdowns for `storey_range` (no free-text entry),
+- correlated input guardrails for `flat_type` + `flat_model` + floor-area range,
+- floor-area input in either `sqm` or `sqft` (auto-converted to model input),
+- lease guardrails (commence year cannot exceed transaction year; optional auto 99-year remaining lease),
+- `Resale` / `BTO` profile mode with BTO naming + lease prefill when BTO reference rows are available,
+- graph-analytics context (town trend + percentile position),
+- optional market-anchor blend toward recent comparable medians for stability.
+- lease time-decay coefficient display for transparency of leasehold adjustment.
+- nearest comparable-transactions panel with similarity distance and median/IQR context.
+- reliability score driven by comparables density, interval width, OOD warnings, and segment RMSE.
+- segment error slices from `metadata.json` (town and flat-type) for transparency.
+- human-readable segment benchmark tables with plain-language guidance (`lower error is better`, `higher sample size is better`).
+- location/connectivity premium context (planning area, region tier, MRT proxy, and CBD access heuristic).
+- optional scenario overlay controls for school-zone, shopping-hub, and fast-CBD-access premium assumptions.
+- new **Housing economics details** tab for end-to-end ownership estimation:
+  - MOP timeline and estimated sale timing checks
+  - grants checklist, estimated return-to-government, and levy
+  - HDB/bank loan cashflow schedule with CPF vs cash split
+  - COV/premium, renovation, taxes/fees, and itemized cost ledger
+  - profit waterfall and breakdown tables
+  - bank package modelling for common `2-year fixed -> SORA + spread` path
+  - repricing/refinancing simulation with admin/legal/valuation/clawback and lock-in penalty impacts
+
+### Housing economics details (estimator)
+
+The app now includes an estimator-focused page for BTO/resale/EC/private planning using policy defaults in:
+
+- `configs/housing_finance_v1.yaml`
+
+Core implementation lives in:
+
+- `src/singapore_eda/housing_finance/models.py`
+- `src/singapore_eda/housing_finance/policy_defaults.py`
+- `src/singapore_eda/housing_finance/calculators.py`
+- `src/singapore_eda/housing_finance/formatters.py`
+
+Run and verify:
+
+```bash
+streamlit run streamlit_app.py
+pytest tests/test_housing_finance.py
+```
+
+For detailed formulas, assumptions, and interpretation guidance, see:
+
+- `docs/housing_details_v1_runbook.md`
+
+### Verification checklist
+
+```bash
+make test
+make ruff
+python -m pip_audit -r requirements.txt
+python scripts/run_forecaster_near_term_eval.py --input data/raw/hdb_resale_2017_onwards.csv
+python scripts/prepare_feedback_dataset.py
+```
+
+`pip-audit` is required before release handoff; record critical/high findings and remediation.
+
+### Verified end-to-end run (latest)
+
+Validated with:
+
+```bash
+ML_OPEN_STREAMLIT=0 ML_RUN_DEEPCHECKS=1 RUN_ALL_SKIP_INSTALL=1 ./run-all-machinelearning.sh
+```
+
+Observed status:
+- lint + tests passed (`48 passed`)
+- forecaster artifacts built
+- inference smoke-check passed
+- Deepchecks step executed (environment warning may be emitted by upstream deepchecks)
+- vulnerability scan passes after upgrading to a secure `mlflow` line
+
+Security note:
+- `mlflow` baseline is pinned to `>=3.11.1,<4` to clear known CVEs reported against the previous `2.22.4` line.
+- Keep `python -m pip_audit -r requirements.txt` in release checks to catch newly disclosed vulnerabilities.
+
+### Reproducibility and recovery
+
+- Repro check: `make forecaster-v1-verify`
+- Deepchecks (on demand): `make forecaster-v1-deepchecks`
+- Runbook: [`docs/forecaster_v1_runbook.md`](docs/forecaster_v1_runbook.md)
+- Decision log (what we chose and why): [`docs/forecaster_v1_decisions.md`](docs/forecaster_v1_decisions.md)
+- Model benchmark evidence (LightGBM vs XGBoost): [`docs/forecaster_v1_model_benchmark.md`](docs/forecaster_v1_model_benchmark.md)
+- Near-term rolling backtest / calibration / ablation artifacts: `reports/forecaster_v1/near_term_eval.{json,md}`
+- Near-term eval now enforces a minimum rolling-window count and emits a promotion gate (`coverage_pass`, `width_pass`, `pass`) in JSON.
+- MRT references sourced from official data.gov.sg APIs via `scripts/fetch_mrt_reference.py`:
+  - URA MP14 MRT Station Symbol (`d_649357d5cb04ddbef9166dfcf1fa8d21`)
+  - URA Master Plan 2003 MRT Name (`d_dbc192abee39f51efecc0adbe9f1a75d`)
+- Official travel-time file via `scripts/fetch_mrt_travel_times.py`:
+  - output: `data/reference/mrt_travel_time_to_cbd.csv`
+  - credentials: set `ONEMAP_API_EMAIL` and `ONEMAP_API_PASSWORD`
+  - source API: OneMap routing (`routeType=pt`, `mode=TRANSIT`)
+
+**Geo (Graph tab, planning-area edges):** `pip install -e ".[geo]"` and run `make fetch-geo` or `scripts/fetch_reference_geo.py` to pull the official [MP2025 planning-area boundary (No Sea)](https://data.gov.sg/datasets/d_2cc750190544007400b2cfd5d7f53209/view) GeoJSON (old static `geo.data.gov.sg` MP14 links are no longer served). **Rent / gross yield:** set `HDB_MEDIAN_RENT_RESOURCE_ID` and `hdb-rent-download -o data/raw/median_rent_hdb.csv`, or use [`tests/fixtures/median_rent_sample.csv`](tests/fixtures/median_rent_sample.csv). **BTO historical + future supply references:** run `hdb-bto-download -o data/reference` (writes launch price range, completion status, property information, plus `hdb_bto_reference.csv`). Override staleness in the app with `SINGAPORE_EDA_RENT_TTL_HOURS`. Tranche merge and other CLI details: `hdb-download --help`, `hdb-resale-merge --help`.
+
+Forecaster training/inference now consumes BTO-derived town/year context features when these files are present:
+- `bto_launch_count_town_3y`
+- `bto_avg_price_range_mid_town_3y`
+- `bto_under_construction_units_town`
+- `bto_completed_units_town`
 
 ## Data
 
 **Primary resale table:** [Resale flat prices (registration) from Jan-2017 onwards](https://data.gov.sg/datasets/d_8b84c4ee58e3cfc0ece0d773c8ca6abc/view) (HDB, [Open Data Licence](https://data.gov.sg/open-data-licence)).
 
-**Reference tables (in-repo):** [`data/reference/`](data/reference/) — town → planning area / OCR, mature vs young labels, MRT access proxy, optional EIP block stub, future MRT example rows.
+**Reference tables (in-repo):** [`data/reference/`](data/reference/) — town → planning area / OCR, mature vs young labels, MRT access proxy, optional EIP block stub, and official MRT reference exports fetched from government APIs.
 
 ## Live demo (two URLs)
 
@@ -71,6 +266,9 @@ Then: `make test` · `hdb-download -o data/raw/hdb_resale_2017_onwards.csv` (or 
    - Main file path: `streamlit_app.py`
    - (Optional) Python version: 3.12
 6. Add secrets in Streamlit Cloud (**App settings → Secrets**) using [`.streamlit/secrets.toml.example`](.streamlit/secrets.toml.example).
+   - For OneMap travel-time fetches, include:
+     - `ONEMAP_API_EMAIL`
+     - `ONEMAP_API_PASSWORD`
 7. Deploy and copy your Streamlit URL (typically `https://<app-name>.streamlit.app`).
 8. Replace the placeholders below and commit:
 
@@ -100,6 +298,17 @@ SINGAPORE_EDA_AUTO_DOWNLOAD_RENT_ON_MISSING = "1"
 SINGAPORE_EDA_RENT_BOOTSTRAP_MAX_ROWS = "200000"
 SINGAPORE_EDA_AUTO_FETCH_GEO_ON_TINY = "1"
 ```
+
+Optional OneMap secrets for official travel-time refresh jobs:
+
+```toml
+ONEMAP_API_EMAIL = "your_onemap_email"
+ONEMAP_API_PASSWORD = "your_onemap_password"
+```
+
+Local-only development alternative:
+- put the same values into repo-root `.env` (already gitignored),
+- run `make fetch-mrt-travel-times`.
 
 ## Production: data.gov.sg limits, cache, health API, ops UI
 
@@ -169,7 +378,7 @@ This section is intentionally direct: the project is useful for **learning and e
 ### Weaknesses and cons (what to be careful about)
 
 - **Exploratory, not a full research pipeline:** Methods are **standard EDA and simple models** (e.g. OLS-style stats, k-means, ETS). They are **not** a complete econometric or ML validation programme; assumptions are not fully audited in this repo.
-- **Reference data and proxies:** In-repo tables (town→planning area, MRT access, maturity labels) and optional files (e.g. EIP **stub**, future MRT **examples**) are **simplifications** or **placeholders** where noted in code or docs. They can be **wrong**, **incomplete**, or **out of date** relative to ground truth.
+- **Reference data and proxies:** In-repo tables (town→planning area, MRT access, maturity labels) and optional files (e.g. EIP **stub**) are simplifications where noted. Even when sourced from official datasets/APIs, joins and transformations can still be wrong, incomplete, or stale relative to current ground truth.
 - **Optional or stubbed features:** Some modules are explicitly limited (e.g. **sun exposure** is largely placeholder unless enabled and configured; see package layout). Treat their outputs as **illustrative**.
 - **Sample and default limits:** Default downloads cap row counts; partial samples **do not** represent the full market. Stale or cached data may not reflect the latest government release.
 - **Upstream and maintenance risk:** API formats, tranche boundaries, and CKAN behaviour **change**; the pipeline may need maintenance after upstream changes.

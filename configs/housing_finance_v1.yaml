@@ -1,0 +1,46 @@
+metadata:
+  effective_date: "2026-01-01"
+  updated_on: "2026-04-28"
+  disclaimer: "Estimator only. Verify policy and legal details with official sources."
+
+loan_defaults:
+  hdb_fixed_rate_pct: 2.6
+  bank_fixed_rate_pct: 3.2
+  bank_floating_base_rate_pct: 3.0
+  bank_fixed_then_sora_default: true
+  bank_fixed_period_months: 24
+  bank_sora_spread_pct: 1.0
+
+grant_defaults:
+  grant_return_rate_pct: 100.0
+  sg_sg:
+    - name: "EHG"
+      amount: 80000
+      selected: false
+    - name: "Family Grant"
+      amount: 50000
+      selected: false
+  sg_pr:
+    - name: "Family Grant (Citizen-PR)"
+      amount: 40000
+      selected: false
+  pr_pr: []
+  single_citizen:
+    - name: "Singles Grant"
+      amount: 25000
+      selected: false
+  other: []
+
+resale_levy_defaults:
+  bto: 40000
+  resale: 0
+  ec: 0
+  private: 0
+
+fee_defaults:
+  legal_fees_default: 2500
+  valuation_fees_default: 500
+  buyer_stamp_duty_default_rate_pct: 2.5
+  additional_buyer_stamp_duty_default_rate_pct: 0
+  agent_sale_fee_default_rate_pct: 0.02
+  maintenance_monthly_default: 120

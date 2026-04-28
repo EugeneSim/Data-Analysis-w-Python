@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
-from singapore_eda.constants import SQM_TO_SQFT
+from singapore_eda.constants import (
+    DEFAULT_BTO_COMPLETION_STATUS_CSV,
+    DEFAULT_BTO_PRICE_RANGE_CSV,
+    SQM_TO_SQFT,
+)
 
 
 def add_log_price_and_psm(df: pd.DataFrame) -> pd.DataFrame:
@@ -67,6 +74,141 @@ def top_n_town_other(
     return out
 
 
+def _normalize_town_key(ser: pd.Series) -> pd.Series:
+    return ser.astype(str).str.strip().str.upper()
+
+
+def _bto_price_path() -> Path:
+    return Path(
+        os.environ.get("SINGAPORE_EDA_BTO_PRICE_RANGE_CSV", str(DEFAULT_BTO_PRICE_RANGE_CSV))
+    )
+
+
+def _bto_completion_path() -> Path:
+    return Path(
+        os.environ.get(
+            "SINGAPORE_EDA_BTO_COMPLETION_STATUS_CSV",
+            str(DEFAULT_BTO_COMPLETION_STATUS_CSV),
+        )
+    )
+
+
+def _price_mid(min_ser: pd.Series, max_ser: pd.Series) -> pd.Series:
+    return (
+        pd.to_numeric(min_ser, errors="coerce").fillna(0.0)
+        + pd.to_numeric(max_ser, errors="coerce").fillna(0.0)
+    ) / 2.0
+
+
+def add_bto_reference_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add BTO historical/future supply context keyed by town and transaction year.
+
+    Output columns:
+    - bto_launch_count_town_3y
+    - bto_avg_price_range_mid_town_3y
+    - bto_under_construction_units_town
+    - bto_completed_units_town
+    """
+    out = df.copy()
+    for col in (
+        "bto_launch_count_town_3y",
+        "bto_avg_price_range_mid_town_3y",
+        "bto_under_construction_units_town",
+        "bto_completed_units_town",
+    ):
+        out[col] = 0.0
+    if "town" not in out.columns:
+        return out
+    if "year" not in out.columns:
+        if "month" in out.columns:
+            out["year"] = pd.to_datetime(out["month"], errors="coerce").dt.year
+        else:
+            return out
+    out["_town_key"] = _normalize_town_key(out["town"])
+    out["_tx_year"] = pd.to_numeric(out["year"], errors="coerce")
+    valid_mask = out["_tx_year"].notna()
+    if not valid_mask.any():
+        out = out.drop(columns=["_town_key", "_tx_year"], errors="ignore")
+        return out
+
+    bto_price_path = _bto_price_path()
+    if bto_price_path.exists():
+        price = pd.read_csv(bto_price_path)
+        price.columns = [str(c).strip().lower().replace(" ", "_") for c in price.columns]
+        need = {"town", "financial_year", "min_selling_price", "max_selling_price"}
+        if need.issubset(price.columns):
+            price = price.copy()
+            price["_town_key"] = _normalize_town_key(price["town"])
+            price["_year"] = pd.to_numeric(price["financial_year"], errors="coerce")
+            price["_mid"] = _price_mid(price["min_selling_price"], price["max_selling_price"])
+            price = price.dropna(subset=["_year"])
+            agg = (
+                price.groupby(["_town_key", "_year"], as_index=False)
+                .agg(
+                    launches=("financial_year", "count"),
+                    mean_mid_price=("_mid", "mean"),
+                )
+                .reset_index(drop=True)
+            )
+            for yr in sorted(out.loc[valid_mask, "_tx_year"].astype(int).unique().tolist()):
+                yr_mask = out["_tx_year"].astype("Int64") == int(yr)
+                w = agg[(agg["_year"] >= (yr - 2)) & (agg["_year"] <= yr)]
+                if w.empty:
+                    continue
+                by_town = w.groupby("_town_key", as_index=False).agg(
+                    launch_count_3y=("launches", "sum"),
+                    mid_price_3y=("mean_mid_price", "mean"),
+                )
+                c_map = by_town.set_index("_town_key")["launch_count_3y"].to_dict()
+                p_map = by_town.set_index("_town_key")["mid_price_3y"].to_dict()
+                out.loc[yr_mask, "bto_launch_count_town_3y"] = (
+                    out.loc[yr_mask, "_town_key"].map(c_map).fillna(0.0).astype(float)
+                )
+                out.loc[yr_mask, "bto_avg_price_range_mid_town_3y"] = (
+                    out.loc[yr_mask, "_town_key"].map(p_map).fillna(0.0).astype(float)
+                )
+
+    bto_comp_path = _bto_completion_path()
+    if bto_comp_path.exists():
+        comp = pd.read_csv(bto_comp_path)
+        comp.columns = [str(c).strip().lower().replace(" ", "_") for c in comp.columns]
+        need = {"town_or_estate", "financial_year", "status", "no_of_units"}
+        if need.issubset(comp.columns):
+            comp = comp.copy()
+            comp["_town_key"] = _normalize_town_key(comp["town_or_estate"])
+            comp["_year"] = pd.to_numeric(comp["financial_year"], errors="coerce")
+            comp["_units"] = pd.to_numeric(comp["no_of_units"], errors="coerce").fillna(0.0)
+            comp["_status"] = comp["status"].astype(str).str.strip().str.upper()
+            comp = comp.dropna(subset=["_year"])
+            for yr in sorted(out.loc[valid_mask, "_tx_year"].astype(int).unique().tolist()):
+                yr_mask = out["_tx_year"].astype("Int64") == int(yr)
+                hist = comp[comp["_year"] <= yr]
+                if hist.empty:
+                    continue
+                uc = (
+                    hist[hist["_status"].str.contains("UNDER", na=False)]
+                    .groupby("_town_key")["_units"]
+                    .sum()
+                    .to_dict()
+                )
+                done = (
+                    hist[hist["_status"].str.contains("COMPLETED", na=False)]
+                    .groupby("_town_key")["_units"]
+                    .sum()
+                    .to_dict()
+                )
+                out.loc[yr_mask, "bto_under_construction_units_town"] = (
+                    out.loc[yr_mask, "_town_key"].map(uc).fillna(0.0).astype(float)
+                )
+                out.loc[yr_mask, "bto_completed_units_town"] = (
+                    out.loc[yr_mask, "_town_key"].map(done).fillna(0.0).astype(float)
+                )
+
+    out = out.drop(columns=["_town_key", "_tx_year"], errors="ignore")
+    return out
+
+
 def add_features(
     df: pd.DataFrame,
     *,
@@ -82,6 +224,7 @@ def add_features(
     use a fixed count instead.
     """
     out = add_log_price_and_psm(df)
+    out = add_bto_reference_features(out)
     if town_coverage is not None:
         out = top_n_town_other(out, town_coverage=town_coverage)
     else:

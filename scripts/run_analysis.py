@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from singapore_eda.bto_ingest import download_bto_data
 from singapore_eda.clean import clean_hdb
 from singapore_eda.constants import DEFAULT_PROCESSED_PARQUET, DEFAULT_RAW_CSV
 from singapore_eda.features import add_features, model_design_subset
@@ -25,7 +26,15 @@ def main() -> None:
         default=DEFAULT_PROCESSED_PARQUET,
         help="Write cleaned parquet here",
     )
+    p.add_argument(
+        "--refresh-bto",
+        action="store_true",
+        help="Download latest BTO historical + future-facing reference datasets first.",
+    )
     args = p.parse_args()
+
+    if args.refresh_bto:
+        download_bto_data(out_dir=Path("data/reference"))
 
     raw, _meta = read_hdb_csv(args.input)
     clean = clean_hdb(raw)

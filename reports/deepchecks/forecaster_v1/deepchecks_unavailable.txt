@@ -1,0 +1,2 @@
+Deepchecks validation could not run in this environment.
+Reason: `np.Inf` was removed in the NumPy 2.0 release. Use `np.inf` instead.

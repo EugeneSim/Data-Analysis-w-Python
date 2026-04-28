@@ -1,0 +1,48 @@
+train:
+  train_frac: 0.70
+  val_frac: 0.15
+  random_state: 42
+  model_dir: models/forecaster_v1
+  candidate_models:
+    - xgboost
+    - lightgbm
+  use_lag_features: false
+
+models:
+  xgboost:
+    n_estimators: 500
+    learning_rate: 0.05
+    max_depth: 6
+    subsample: 0.85
+    colsample_bytree: 0.85
+    reg_alpha: 0.0
+    reg_lambda: 1.0
+    objective: reg:squarederror
+  lightgbm:
+    n_estimators: 500
+    learning_rate: 0.05
+    max_depth: -1
+    num_leaves: 63
+    subsample: 0.85
+    colsample_bytree: 0.85
+    verbose: -1
+
+tracking:
+  mlflow_enabled: true
+  mlflow_tracking_uri: "sqlite:///mlflow.db"
+  mlflow_experiment: singapore-eda-forecaster-v1
+
+validation:
+  deepchecks_enabled: false
+  deepchecks_output_dir: reports/deepchecks/forecaster_v1
+  interval_nominal_coverage: 0.80
+  rolling_min_windows: 3
+  coverage_tolerance: 0.10
+  max_mean_interval_width: 220000.0
+
+feedback:
+  store_path: data/feedback/forecaster_feedback.csv
+  validated_path: data/feedback/forecaster_feedback_validated.csv
+  retraining_path: data/feedback/forecaster_feedback_retraining.csv
+  retention_days: 365
+  min_comment_redact_digits: 6

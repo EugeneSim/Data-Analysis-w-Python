@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pandas as pd
 
-from singapore_eda.features import _towns_reaching_row_coverage, add_features, top_n_town_other
+from singapore_eda.features import (
+    _towns_reaching_row_coverage,
+    add_bto_reference_features,
+    add_features,
+    top_n_town_other,
+)
 
 
 def test_towns_80pc_covers_enough_rows() -> None:
@@ -34,3 +39,42 @@ def test_town_coverage_1_uses_all_towns() -> None:
     )
     out = add_features(df, town_coverage=1.0)
     assert (out["town_group"] == out["town"]).all()
+
+
+def test_add_bto_reference_features_joins_from_reference_files(
+    tmp_path, monkeypatch
+) -> None:
+    price = tmp_path / "bto_price.csv"
+    comp = tmp_path / "bto_comp.csv"
+    pd.DataFrame(
+        {
+            "financial_year": [2020, 2021, 2022],
+            "town": ["ANG MO KIO", "ANG MO KIO", "BEDOK"],
+            "room_type": ["4-RM", "4-RM", "4-RM"],
+            "min_selling_price": [300000, 320000, 400000],
+            "max_selling_price": [420000, 450000, 520000],
+        }
+    ).to_csv(price, index=False)
+    pd.DataFrame(
+        {
+            "financial_year": [2020, 2021, 2022],
+            "town_or_estate": ["ANG MO KIO", "ANG MO KIO", "BEDOK"],
+            "status": ["Under Construction", "Completed", "Under Construction"],
+            "no_of_units": [300, 100, 500],
+            "hdb_or_dbss": ["HDB", "HDB", "HDB"],
+        }
+    ).to_csv(comp, index=False)
+    monkeypatch.setenv("SINGAPORE_EDA_BTO_PRICE_RANGE_CSV", str(price))
+    monkeypatch.setenv("SINGAPORE_EDA_BTO_COMPLETION_STATUS_CSV", str(comp))
+    frame = pd.DataFrame(
+        {
+            "month": pd.to_datetime(["2021-06-01", "2022-06-01"]),
+            "year": [2021, 2022],
+            "town": ["ANG MO KIO", "BEDOK"],
+        }
+    )
+    out = add_bto_reference_features(frame)
+    assert "bto_launch_count_town_3y" in out.columns
+    assert float(out.loc[0, "bto_launch_count_town_3y"]) >= 2.0
+    assert float(out.loc[0, "bto_under_construction_units_town"]) >= 300.0
+    assert float(out.loc[1, "bto_under_construction_units_town"]) >= 500.0

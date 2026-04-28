@@ -22,7 +22,16 @@ dependencies = [
     "pyarrow>=18,<20",
     "requests>=2.32,<3",
     "networkx>=3.2,<4",
-    "scikit-learn>=1.5,<2",
+    "scikit-learn>=1.5,<1.8",
+    "xgboost>=2.1,<3",
+    "lightgbm>=4.6,<5",
+    "shap>=0.46,<1",
+    "joblib>=1.4,<2",
+    "psycopg[binary]>=3.2,<4",
+    "mlflow>=3.11.1,<4",
+    "deepchecks>=0.19,<1",
+    "pyyaml>=6.0,<7",
+    "setuptools>=68,<81",
 ]
 
 [project.optional-dependencies]
@@ -36,14 +45,17 @@ api = [
     "uvicorn[standard]>=0.32,<0.35",
 ]
 geo = [
-    "geopandas>=1.0,<1.1",
+    "geopandas>=1.1,<2",
+    "shapely>=2.0,<3",
 ]
 
 [project.scripts]
 hdb-download = "singapore_eda.download_data:main"
 hdb-rent-download = "singapore_eda.rent_ingest:main"
+hdb-bto-download = "singapore_eda.bto_ingest:main"
 hdb-resale-merge = "singapore_eda.merge_resale:main"
 singapore-eda-health = "singapore_eda.health_server:main"
+hdb-forecaster-v1-build = "singapore_eda.forecaster_build:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
