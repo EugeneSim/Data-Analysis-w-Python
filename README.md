@@ -249,7 +249,7 @@ Forecaster training/inference now consumes BTO-derived town/year context feature
 
 ## Live demo (two URLs)
 
-- **GitHub Pages** (static report only): enable [`.github/workflows/publish-quarto.yml`](.github/workflows/publish-quarto.yml) and set **Settings → Pages** to **GitHub Actions**. URL shape: `https://<user>.github.io/<repo>/`.
+- **GitHub Pages** (static report only): enable [`.github/workflows/publish-quarto.yml`](.github/workflows/publish-quarto.yml) and set **Settings → Pages** to **GitHub Actions**. URL shape: `[https://<user>.github.io/<repo>/](https://eugene-sim-data-analysis-hdb.streamlit.app/)`.
 - **Streamlit Community Cloud** (interactive app): main file `streamlit_app.py`; Python dependencies are in [`requirements.txt`](requirements.txt) (`-e .`) and project metadata in [`pyproject.toml`](pyproject.toml). Set secrets in the Cloud UI (e.g. `DATA_GOV_SG_API_KEY`) as in [`.streamlit/secrets.toml.example`](.streamlit/secrets.toml.example). List the Cloud app URL in this README next to the Pages URL.
 
 ### Publish checklist (GitHub Pages + Streamlit Cloud)
