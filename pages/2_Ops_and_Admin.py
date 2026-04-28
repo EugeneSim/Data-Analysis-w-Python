@@ -31,8 +31,13 @@ h1, h2, h3 {letter-spacing: -0.02em;}
 .ux-hero {
   border-radius: 16px;
   border: 1px solid rgba(37, 99, 235, 0.22);
-  background: radial-gradient(circle at 15% 20%, rgba(59, 130, 246, 0.20), rgba(255, 255, 255, 0.98) 40%),
-              linear-gradient(120deg, rgba(37, 99, 235, 0.08), rgba(15, 23, 42, 0.03));
+  background:
+      radial-gradient(
+          circle at 15% 20%,
+          rgba(59, 130, 246, 0.20),
+          rgba(255, 255, 255, 0.98) 40%
+      ),
+      linear-gradient(120deg, rgba(37, 99, 235, 0.08), rgba(15, 23, 42, 0.03));
   padding: 1.05rem 1.15rem;
   margin: 0.2rem 0 0.9rem 0;
 }
@@ -148,7 +153,10 @@ def _metric_card(label: str, value: str, icon: str) -> None:
 
 _hero_card(
     "Operations and Reliability Console",
-    "Monitor health checks, API pacing, cache behavior, and admin controls in a single operational view.",
+    (
+        "Monitor health checks, API pacing, cache behavior, and admin controls "
+        "in a single operational view."
+    ),
     eyebrow="Open Data Ops",
 )
 
