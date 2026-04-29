@@ -654,25 +654,142 @@ def _fig_compare_summary(result_a: Any, result_b: Any) -> go.Figure:
     return fig
 
 
+def _residential_bsd(amount: float) -> float:
+    tiers = (
+        (180_000.0, 0.01),
+        (180_000.0, 0.02),
+        (640_000.0, 0.03),
+        (500_000.0, 0.04),
+        (1_500_000.0, 0.05),
+        (float("inf"), 0.06),
+    )
+    remaining = max(0.0, amount)
+    duty = 0.0
+    for cap, rate in tiers:
+        taxable = min(remaining, cap)
+        if taxable <= 0:
+            break
+        duty += taxable * rate
+        remaining -= taxable
+    return float(np.floor(max(1.0, duty))) if amount > 0 else 0.0
+
+
+def _absd_rate_pct(profile: HouseholdProfile, property_count_after_buy: int) -> float:
+    pcount = max(1, int(property_count_after_buy))
+    if profile == HouseholdProfile.SG_SG or profile == HouseholdProfile.SINGLE_CITIZEN:
+        return 0.0 if pcount <= 1 else (20.0 if pcount == 2 else 30.0)
+    if profile == HouseholdProfile.SG_PR:
+        return 5.0 if pcount <= 1 else (30.0 if pcount == 2 else 35.0)
+    if profile == HouseholdProfile.PR_PR:
+        return 5.0 if pcount <= 1 else (30.0 if pcount == 2 else 35.0)
+    return 60.0
+
+
+def _ehg_amount(average_income: float, household: HouseholdProfile) -> float:
+    income = max(0.0, average_income)
+    if household == HouseholdProfile.SINGLE_CITIZEN:
+        if income > 4500:
+            return 0.0
+        steps = int(income // 250.0)
+        return max(0.0, 60_000.0 - (steps * 2_500.0))
+    if household in (HouseholdProfile.SG_SG, HouseholdProfile.SG_PR, HouseholdProfile.PR_PR):
+        if income > 9000:
+            return 0.0
+        steps = int(income // 500.0)
+        return max(0.0, 120_000.0 - (steps * 5_000.0))
+    return 0.0
+
+
+def _fig_debt_vs_rental_subsidy(
+    cft: pd.DataFrame,
+    *,
+    initial_loan: float,
+    rental_tax_rate_pct: float,
+) -> go.Figure:
+    df = cft.copy()
+    tax_mult = max(0.0, min(1.0, 1.0 - (rental_tax_rate_pct / 100.0)))
+    df["rental_net"] = df["rental_inflow"] * tax_mult
+    df["cum_rental_net"] = df["rental_net"].cumsum()
+    df["cum_cash_outflow"] = df["net_cash_outflow"].clip(lower=0.0).cumsum()
+    df["cum_principal"] = df["principal"].cumsum()
+    df["remaining_balance"] = (
+        initial_loan - df["cum_principal"]
+    ).clip(lower=0.0)
+    df["debt_free_progress_pct"] = (
+        (df["cum_principal"] / max(1.0, initial_loan)) * 100.0
+    ).clip(lower=0.0, upper=100.0)
+    df["rental_subsidy_pct"] = (
+        df["cum_rental_net"] / df["cum_cash_outflow"].replace(0.0, np.nan) * 100.0
+    ).fillna(0.0).clip(lower=0.0, upper=300.0)
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=df["month"],
+            y=df["remaining_balance"],
+            mode="lines",
+            name="Remaining debt (SGD)",
+            line=dict(width=2),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df["month"],
+            y=df["cum_rental_net"],
+            mode="lines",
+            name="Cumulative net rental (SGD)",
+            line=dict(width=2),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df["month"],
+            y=df["debt_free_progress_pct"],
+            mode="lines",
+            name="Debt-free progress (%)",
+            yaxis="y2",
+            line=dict(width=2, dash="dot"),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df["month"],
+            y=df["rental_subsidy_pct"],
+            mode="lines",
+            name="Rental subsidy of cash outflow (%)",
+            yaxis="y2",
+            line=dict(width=2, dash="dash"),
+        )
+    )
+    fig.update_layout(
+        title="Debt-free journey vs rental subsidy (after rental tax)",
+        xaxis_title="Month",
+        yaxis_title="SGD",
+        yaxis2=dict(title="Progress %", overlaying="y", side="right"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0.0),
+    )
+    return fig
+
+
 def _inject_minimal_ui() -> None:
     st.markdown(
         """
 <style>
 .block-container {padding-top: 1.0rem; padding-bottom: 1.5rem; max-width: 1240px;}
 h1, h2, h3 {letter-spacing: -0.02em;}
-.ux-h2 {font-size: 1.25rem; font-weight: 650; margin: 0.2rem 0 0.35rem 0; color: #0f172a;}
+.ux-h2 {font-size: 1.25rem; font-weight: 650; margin: 0.2rem 0 0.35rem 0; color: var(--text-color);}
 .ux-divider {
   display: flex;
   align-items: center;
   gap: 0.55rem;
   margin: 1.0rem 0 0.65rem 0;
-  color: #0f172a;
+  color: var(--text-color);
 }
 .ux-divider .icon {
   width: 1.7rem;
   height: 1.7rem;
   border-radius: 999px;
-  background: rgba(37, 99, 235, 0.12);
+  background: rgba(59, 130, 246, 0.18);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -688,9 +805,9 @@ h1, h2, h3 {letter-spacing: -0.02em;}
   border-top: 1px solid rgba(148, 163, 184, 0.45);
 }
 .ux-note {
-  color: rgba(49, 51, 63, 0.82);
-  border-left: 3px solid rgba(37, 99, 235, 0.35);
-  background: rgba(37, 99, 235, 0.05);
+  color: var(--text-color);
+  border-left: 3px solid rgba(96, 165, 250, 0.6);
+  background: rgba(30, 58, 138, 0.18);
   border-radius: 8px;
   padding: 0.55rem 0.75rem;
   margin: 0.3rem 0 0.75rem 0;
@@ -699,8 +816,8 @@ h1, h2, h3 {letter-spacing: -0.02em;}
 [data-testid="stDataFrame"] {border-radius: 8px;}
 .ux-metric {
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  background: linear-gradient(165deg, rgba(248, 250, 252, 1), rgba(241, 245, 249, 0.85));
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: linear-gradient(165deg, rgba(30, 41, 59, 0.18), rgba(71, 85, 105, 0.10));
   padding: 0.75rem 0.85rem;
   min-height: 96px;
 }
@@ -708,31 +825,31 @@ h1, h2, h3 {letter-spacing: -0.02em;}
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  color: #334155;
+  color: var(--text-color);
   font-size: 0.85rem;
   font-weight: 620;
   margin-bottom: 0.35rem;
 }
 .ux-metric .val {
-  color: #0f172a;
+  color: var(--text-color);
   font-size: 1.28rem;
   font-weight: 760;
   line-height: 1.25;
 }
 .ux-banner {
   border-radius: 14px;
-  border: 1px solid rgba(59, 130, 246, 0.25);
-  background: linear-gradient(90deg, rgba(30, 64, 175, 0.10), rgba(37, 99, 235, 0.03));
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  background: linear-gradient(90deg, rgba(30, 64, 175, 0.25), rgba(2, 132, 199, 0.12));
   padding: 0.9rem 1rem;
   margin-bottom: 0.7rem;
 }
 .ux-hero {
   border-radius: 16px;
-  border: 1px solid rgba(37, 99, 235, 0.22);
+  border: 1px solid rgba(96, 165, 250, 0.45);
   background: radial-gradient(
-              circle at 15% 20%, rgba(59, 130, 246, 0.20), rgba(255, 255, 255, 0.98) 40%
+              circle at 12% 18%, rgba(59, 130, 246, 0.24), rgba(15, 23, 42, 0.18) 45%
             ),
-              linear-gradient(120deg, rgba(37, 99, 235, 0.08), rgba(15, 23, 42, 0.03));
+              linear-gradient(120deg, rgba(30, 64, 175, 0.20), rgba(15, 23, 42, 0.08));
   padding: 1.05rem 1.15rem;
   margin: 0.2rem 0 0.9rem 0;
 }
@@ -741,17 +858,17 @@ h1, h2, h3 {letter-spacing: -0.02em;}
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-weight: 700;
-  color: #1e3a8a;
+  color: rgba(147, 197, 253, 0.96);
   margin-bottom: 0.32rem;
 }
 .ux-hero h3 {
   margin: 0 0 0.3rem 0;
-  color: #0f172a;
+  color: var(--text-color);
   font-size: 1.18rem;
 }
 .ux-hero p {
   margin: 0;
-  color: #334155;
+  color: var(--text-color);
   line-height: 1.35rem;
 }
 .ux-banner h3 {
@@ -760,7 +877,7 @@ h1, h2, h3 {letter-spacing: -0.02em;}
 }
 .ux-banner p {
   margin: 0;
-  color: rgba(30, 41, 59, 0.92);
+  color: var(--text-color);
 }
 </style>
 """,
@@ -1685,7 +1802,7 @@ def _render_forecaster_v1(df: pd.DataFrame) -> None:
 
 def _render_housing_economics_details() -> None:
     _hero_card(
-        "Housing Economics Details",
+        "HDB Calculator",
         (
             "Plan full ownership economics including grants, levy, cashflow, "
             "and estimated exit outcome."
@@ -1739,8 +1856,19 @@ def _render_housing_economics_details() -> None:
         step=1000.0,
     )
     years_to_sell = p3.number_input("Years to estimated sale", min_value=0.1, value=8.0, step=0.5)
+    hpol1, hpol2, hpol3 = st.columns(3)
+    housing_policy_tier = hpol1.selectbox(
+        "Flat policy tier",
+        ("standard", "plus", "prime"),
+        index=0,
+        help="Standard usually has 5-year MOP, Plus/Prime usually 10-year MOP.",
+    )
+    default_mop = 5.0 if housing_policy_tier == "standard" else 10.0
+    default_subsidy_recovery_pct = (
+        0.0 if housing_policy_tier == "standard" else (6.0 if housing_policy_tier == "plus" else 9.0)
+    )
     t1, t2, t3 = st.columns(3)
-    mop_years = t1.number_input("MOP years", min_value=0.0, value=5.0, step=0.5)
+    mop_years = t1.number_input("MOP years", min_value=0.0, value=default_mop, step=0.5)
     wait_years_to_keys = t2.number_input("Wait to keys (years)", min_value=0.0, value=4.0, step=0.5)
     loan_tenure_years = int(
         t3.number_input("Loan tenure (years)", min_value=1.0, max_value=35.0, value=25.0, step=1.0)
@@ -1842,6 +1970,19 @@ def _render_housing_economics_details() -> None:
         step=100.0,
         help="Set >0 only when legally allowed by your occupancy scenario.",
     )
+    rental_tax_rate_pct = cst4.number_input(
+        "Effective rental tax/expense rate (%)",
+        min_value=0.0,
+        max_value=100.0,
+        value=10.0,
+        step=0.5,
+        help="Used only for the debt-free vs rental subsidy graph.",
+    )
+    if housing_policy_tier in {"plus", "prime"}:
+        st.caption(
+            "Policy note: Plus/Prime flats usually have stricter rental rules (no whole-unit "
+            "rental after MOP). Set rental inflow conservatively."
+        )
     fee1, fee2, fee3, fee4 = st.columns(4)
     legal_fees = fee1.number_input(
         "Legal fees (SGD)",
@@ -1855,17 +1996,30 @@ def _render_housing_economics_details() -> None:
         value=defaults.valuation_fees_default,
         step=50.0,
     )
+    bsd_auto = _residential_bsd(float(purchase_price))
     buyer_stamp_duty = fee3.number_input(
         "Buyer's Stamp Duty (SGD)",
         min_value=0.0,
-        value=purchase_price * defaults.buyer_stamp_duty_default_rate_pct / 100.0,
+        value=bsd_auto,
         step=100.0,
+        help="IRAS residential BSD tier table is used for the default value.",
     )
+    prop_count = int(
+        fee4.number_input(
+            "Residential property count after purchase",
+            min_value=1.0,
+            max_value=6.0,
+            value=1.0,
+            step=1.0,
+        )
+    )
+    absd_rate_pct = _absd_rate_pct(household_profile, prop_count)
     additional_buyer_stamp_duty = fee4.number_input(
         "Additional Buyer's Stamp Duty (SGD)",
         min_value=0.0,
-        value=purchase_price * defaults.additional_buyer_stamp_duty_default_rate_pct / 100.0,
+        value=float(purchase_price) * absd_rate_pct / 100.0,
         step=100.0,
+        help=f"Default uses profile/property-count ABSD estimate at {absd_rate_pct:.1f}%.",
     )
     gov1, gov2 = st.columns(2)
     resale_levy_amount = gov1.number_input(
@@ -1874,10 +2028,18 @@ def _render_housing_economics_details() -> None:
         value=defaults.resale_levy_by_housing_type.get(housing_type.value, 0.0),
         step=1000.0,
     )
-    gov_return_extra_amount = gov2.number_input(
-        "Other return to government (SGD)",
+    subsidy_recovery_pct = gov1.number_input(
+        "Subsidy recovery on first resale (%)",
         min_value=0.0,
-        value=0.0,
+        max_value=25.0,
+        value=default_subsidy_recovery_pct,
+        step=0.5,
+        help="Standard=0 by default. Plus/Prime defaults are editable assumptions.",
+    )
+    gov_return_extra_amount = gov2.number_input(
+        "Other return to government (SGD, incl subsidy recovery)",
+        min_value=0.0,
+        value=float(expected_sale_price) * subsidy_recovery_pct / 100.0,
         step=1000.0,
     )
     st.markdown("#### Repricing / refinancing behavior")
@@ -1961,20 +2123,72 @@ def _render_housing_economics_details() -> None:
         help="Some refinancing subsidies may be clawed back if redeemed early.",
     )
     st.markdown("#### Grants taken checklist")
+    g1, g2, g3 = st.columns(3)
+    avg_monthly_income = g1.number_input(
+        "Average gross monthly household income (SGD)",
+        min_value=0.0,
+        value=7000.0,
+        step=100.0,
+    )
+    ehg_amt = _ehg_amount(float(avg_monthly_income), household_profile)
+    include_family_grant = g2.checkbox(
+        "Include CPF Family / Singles Grant (resale)",
+        value=True,
+    )
+    include_phg = g3.checkbox(
+        "Include Proximity Housing Grant (resale)",
+        value=False,
+    )
+    live_with_family = g3.checkbox("Live with parent/child (PHG higher tier)", value=False)
+    include_citizen_topup = g3.checkbox("Include Citizen Top-Up Grant", value=False)
+
     grant_rows: list[GrantSelection] = []
-    defaults_grants = defaults.grants_by_household.get(household_profile.value, [])
-    if defaults_grants:
-        gc = st.columns(min(4, max(1, len(defaults_grants))))
-        for i, g in enumerate(defaults_grants):
+    if ehg_amt > 0:
+        grant_rows.append(GrantSelection(name="EHG (income-tiered)", amount=ehg_amt, selected=True))
+    if include_family_grant and housing_type == HousingType.RESALE:
+        if household_profile == HouseholdProfile.SG_SG:
+            fg = 80_000.0 if purchase_price <= 750_000 else 50_000.0
+            grant_rows.append(GrantSelection(name="Family Grant", amount=fg, selected=True))
+        elif household_profile == HouseholdProfile.SG_PR:
+            fg = 70_000.0 if purchase_price <= 750_000 else 40_000.0
+            grant_rows.append(
+                GrantSelection(name="Family Grant (Citizen-PR)", amount=fg, selected=True)
+            )
+        elif household_profile == HouseholdProfile.SINGLE_CITIZEN:
+            sg = 40_000.0 if purchase_price <= 750_000 else 25_000.0
+            grant_rows.append(GrantSelection(name="Singles Grant", amount=sg, selected=True))
+    if include_phg and housing_type == HousingType.RESALE:
+        if household_profile == HouseholdProfile.SINGLE_CITIZEN:
+            grant_rows.append(
+                GrantSelection(
+                    name="Proximity Housing Grant (Singles)",
+                    amount=15_000.0 if live_with_family else 10_000.0,
+                    selected=True,
+                )
+            )
+        else:
+            grant_rows.append(
+                GrantSelection(
+                    name="Proximity Housing Grant",
+                    amount=30_000.0 if live_with_family else 20_000.0,
+                    selected=True,
+                )
+            )
+    if include_citizen_topup and household_profile == HouseholdProfile.SG_PR:
+        grant_rows.append(GrantSelection(name="Citizen Top-Up Grant (estimate)", amount=10_000.0))
+    if not grant_rows:
+        st.caption("No grants selected for this scenario.")
+    else:
+        st.caption("Grant assumptions shown below are editable policy estimates.")
+        gc = st.columns(min(3, len(grant_rows)))
+        for i, g in enumerate(grant_rows):
             col = gc[i % len(gc)]
-            picked = col.checkbox(
+            col.checkbox(
                 f"{g.name} (${g.amount:,.0f})",
                 value=g.selected,
                 key=f"grant_{i}_{g.name}",
+                disabled=True,
             )
-            grant_rows.append(GrantSelection(name=g.name, amount=g.amount, selected=picked))
-    else:
-        st.caption("No default grants for this household profile.")
 
     run_clicked = st.button("Compute housing economics", type="primary")
     if not run_clicked:
@@ -2130,6 +2344,16 @@ def _render_housing_economics_details() -> None:
             "Estimated cash top-up to CPF-funded instalments over shown "
             f"schedule: ${cpf_topup:,.2f}."
         )
+        _section_divider("Debt-Free Progress vs Rental Subsidy", icon="🧭")
+        initial_loan = float(purchase_price) * (1.0 - float(downpayment_pct))
+        st.plotly_chart(
+            _fig_debt_vs_rental_subsidy(
+                cft,
+                initial_loan=initial_loan,
+                rental_tax_rate_pct=float(rental_tax_rate_pct),
+            ),
+            width="stretch",
+        )
     st.caption(
         "Loan interest-rate track used: "
         f"{scenario.loan_type.value}; base={scenario.annual_interest_rate_pct:.2f}% "
@@ -2249,7 +2473,7 @@ def main() -> None:
             "Graphs",
             "Policy / culture",
             "Forecaster V1",
-            "Housing economics details",
+            "HDB calculator",
         ]
     )
 

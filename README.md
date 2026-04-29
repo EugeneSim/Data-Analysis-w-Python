@@ -152,16 +152,18 @@ The tab returns:
 - human-readable segment benchmark tables with plain-language guidance (`lower error is better`, `higher sample size is better`).
 - location/connectivity premium context (planning area, region tier, MRT proxy, and CBD access heuristic).
 - optional scenario overlay controls for school-zone, shopping-hub, and fast-CBD-access premium assumptions.
-- new **Housing economics details** tab for end-to-end ownership estimation:
+- new **HDB calculator** tab for end-to-end ownership estimation:
   - MOP timeline and estimated sale timing checks
-  - grants checklist, estimated return-to-government, and levy
+  - tiered EHG + Family/Singles/PHG grant assumptions
+  - estimated return-to-government, levy, and policy-tier subsidy recovery
   - HDB/bank loan cashflow schedule with CPF vs cash split
-  - COV/premium, renovation, taxes/fees, and itemized cost ledger
+  - BSD/ABSD auto defaults, fixed-fee assumptions, and itemized cost ledger
   - profit waterfall and breakdown tables
   - bank package modelling for common `2-year fixed -> SORA + spread` path
   - repricing/refinancing simulation with admin/legal/valuation/clawback and lock-in penalty impacts
+  - integrated debt-free vs rental-subsidy progress chart
 
-### Housing economics details (estimator)
+### HDB calculator (estimator)
 
 The app now includes an estimator-focused page for BTO/resale/EC/private planning using policy defaults in:
 

@@ -1,5 +1,5 @@
 {
-  "created_at_utc": "2026-04-28T03:01:41.502719+00:00",
+  "created_at_utc": "2026-04-28T08:28:43.574563+00:00",
   "rolling_origin": {
     "windows": [
       {
@@ -7,185 +7,185 @@
         "train_end": "2026-01-01",
         "test_end": "2026-04-01",
         "rows": 5212,
-        "rmse": 208574.04050389552,
-        "mae": 176651.0337962874,
-        "interval_coverage_p10_p90": 0.1379508825786646,
-        "mean_interval_width": 97319.55
+        "rmse": 206598.59169305864,
+        "mae": 165988.39654659905,
+        "interval_coverage_p10_p90": 0.2173829623944743,
+        "mean_interval_width": 96066.74415592414
       }
     ],
-    "mean_rmse": 208574.04050389552,
-    "mean_mae": 176651.0337962874,
-    "overall_interval_coverage_p10_p90": 0.1379508825786646,
-    "mean_interval_width": 97319.55,
+    "mean_rmse": 206598.59169305864,
+    "mean_mae": 165988.39654659905,
+    "overall_interval_coverage_p10_p90": 0.2173829623944743,
+    "mean_interval_width": 96066.74415592414,
     "segment_coverage_by_town": [
       {
         "window": 1,
         "town": "ANG MO KIO",
         "rows": 206,
-        "coverage": 0.18446601941747573
+        "coverage": 0.32038834951456313
       },
       {
         "window": 1,
         "town": "BEDOK",
         "rows": 261,
-        "coverage": 0.07662835249042145
+        "coverage": 0.24904214559386972
       },
       {
         "window": 1,
         "town": "BISHAN",
         "rows": 84,
-        "coverage": 0.5833333333333334
+        "coverage": 0.5714285714285714
       },
       {
         "window": 1,
         "town": "BUKIT BATOK",
         "rows": 316,
-        "coverage": 0.0949367088607595
+        "coverage": 0.21518987341772153
       },
       {
         "window": 1,
         "town": "BUKIT MERAH",
         "rows": 213,
-        "coverage": 0.3051643192488263
+        "coverage": 0.39906103286384975
       },
       {
         "window": 1,
         "town": "BUKIT PANJANG",
         "rows": 179,
-        "coverage": 0.01675977653631285
+        "coverage": 0.00558659217877095
       },
       {
         "window": 1,
         "town": "BUKIT TIMAH",
         "rows": 12,
-        "coverage": 0.16666666666666666
+        "coverage": 0.5833333333333334
       },
       {
         "window": 1,
         "town": "CENTRAL AREA",
         "rows": 36,
-        "coverage": 0.4722222222222222
+        "coverage": 0.5277777777777778
       },
       {
         "window": 1,
         "town": "CHOA CHU KANG",
         "rows": 219,
-        "coverage": 0.0136986301369863
+        "coverage": 0.0045662100456621
       },
       {
         "window": 1,
         "town": "CLEMENTI",
         "rows": 100,
-        "coverage": 0.37
+        "coverage": 0.5
       },
       {
         "window": 1,
         "town": "GEYLANG",
         "rows": 141,
-        "coverage": 0.5106382978723404
+        "coverage": 0.6382978723404256
       },
       {
         "window": 1,
         "town": "HOUGANG",
         "rows": 249,
-        "coverage": 0.08835341365461848
+        "coverage": 0.10843373493975904
       },
       {
         "window": 1,
         "town": "JURONG EAST",
         "rows": 105,
-        "coverage": 0.09523809523809523
+        "coverage": 0.17142857142857143
       },
       {
         "window": 1,
         "town": "JURONG WEST",
         "rows": 331,
-        "coverage": 0.03927492447129909
+        "coverage": 0.06948640483383686
       },
       {
         "window": 1,
         "town": "KALLANG/WHAMPOA",
         "rows": 136,
-        "coverage": 0.4485294117647059
+        "coverage": 0.47058823529411764
       },
       {
         "window": 1,
         "town": "MARINE PARADE",
         "rows": 22,
-        "coverage": 0.6818181818181818
+        "coverage": 0.5454545454545454
       },
       {
         "window": 1,
         "town": "PASIR RIS",
         "rows": 151,
-        "coverage": 0.019867549668874173
+        "coverage": 0.026490066225165563
       },
       {
         "window": 1,
         "town": "PUNGGOL",
         "rows": 336,
-        "coverage": 0.08333333333333333
+        "coverage": 0.06845238095238096
       },
       {
         "window": 1,
         "town": "QUEENSTOWN",
         "rows": 159,
-        "coverage": 0.2893081761006289
+        "coverage": 0.37735849056603776
       },
       {
         "window": 1,
         "town": "SEMBAWANG",
         "rows": 189,
-        "coverage": 0.10052910052910052
+        "coverage": 0.13756613756613756
       },
       {
         "window": 1,
         "town": "SENGKANG",
         "rows": 340,
-        "coverage": 0.029411764705882353
+        "coverage": 0.12058823529411765
       },
       {
         "window": 1,
         "town": "SERANGOON",
         "rows": 69,
-        "coverage": 0.2753623188405797
+        "coverage": 0.2463768115942029
       },
       {
         "window": 1,
         "town": "TAMPINES",
         "rows": 411,
-        "coverage": 0.12165450121654502
+        "coverage": 0.24087591240875914
       },
       {
         "window": 1,
         "town": "TOA PAYOH",
         "rows": 204,
-        "coverage": 0.29901960784313725
+        "coverage": 0.5049019607843137
       },
       {
         "window": 1,
         "town": "WOODLANDS",
         "rows": 399,
-        "coverage": 0.020050125313283207
+        "coverage": 0.07769423558897243
       },
       {
         "window": 1,
         "town": "YISHUN",
         "rows": 344,
-        "coverage": 0.05232558139534884
+        "coverage": 0.24709302325581395
       }
     ]
   },
   "ablation": {
     "without_location_features": {
-      "mae": 34413.76424405219,
-      "rmse": 49404.02970110539,
-      "mape": 0.052272042778631476
+      "mae": 59113.8311329624,
+      "rmse": 94168.70804401723,
+      "mape": 0.09269712100031163
     },
     "with_location_features": {
-      "mae": 33941.34214121259,
-      "rmse": 48376.61395864323,
-      "mape": 0.051618449373182065
+      "mae": 46956.01105441111,
+      "rmse": 66123.27500016958,
+      "mape": 0.07326679631068268
     }
   },
   "promotion_gate": {

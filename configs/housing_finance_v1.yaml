@@ -1,5 +1,5 @@
 metadata:
-  effective_date: "2026-01-01"
+  effective_date: "2026-04-28"
   updated_on: "2026-04-28"
   disclaimer: "Estimator only. Verify policy and legal details with official sources."
 
@@ -15,19 +15,37 @@ grant_defaults:
   grant_return_rate_pct: 100.0
   sg_sg:
     - name: "EHG"
-      amount: 80000
+      amount: 120000
       selected: false
     - name: "Family Grant"
-      amount: 50000
+      amount: 80000
+      selected: false
+    - name: "Proximity Housing Grant"
+      amount: 20000
       selected: false
   sg_pr:
+    - name: "EHG"
+      amount: 120000
+      selected: false
     - name: "Family Grant (Citizen-PR)"
+      amount: 70000
+      selected: false
+    - name: "Proximity Housing Grant"
+      amount: 20000
+      selected: false
+  pr_pr:
+    - name: "EHG"
+      amount: 120000
+      selected: false
+  single_citizen:
+    - name: "EHG (Singles)"
+      amount: 60000
+      selected: false
+    - name: "Singles Grant"
       amount: 40000
       selected: false
-  pr_pr: []
-  single_citizen:
-    - name: "Singles Grant"
-      amount: 25000
+    - name: "Proximity Housing Grant (Singles)"
+      amount: 10000
       selected: false
   other: []
 
@@ -40,7 +58,7 @@ resale_levy_defaults:
 fee_defaults:
   legal_fees_default: 2500
   valuation_fees_default: 500
-  buyer_stamp_duty_default_rate_pct: 2.5
+  buyer_stamp_duty_default_rate_pct: 3.0
   additional_buyer_stamp_duty_default_rate_pct: 0
   agent_sale_fee_default_rate_pct: 0.02
   maintenance_monthly_default: 120

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`Housing economics details` is an estimator-first Streamlit tab for BTO, resale, EC, and private scenarios.  
+`HDB calculator` is an estimator-first Streamlit tab for BTO, resale, EC, and private scenarios.  
 It computes affordability and exit economics using transparent assumptions and formula outputs.
 
 ## What It Covers
@@ -11,9 +11,10 @@ It computes affordability and exit economics using transparent assumptions and f
   - MOP countdown
   - earliest legal sale timing from purchase
 - Grants and return-to-government:
-  - grant checkbox selection
+  - EHG income-tier estimation
+  - Family / Singles / Proximity / Citizen Top-Up toggles
   - estimated grant return and levy
-  - additional manual government return fields
+  - subsidy recovery assumptions for Standard/Plus/Prime policy tiers
 - Loan and instalments:
   - HDB fixed track or bank tracks
   - monthly schedule with interest, principal, CPF used, cash used
@@ -47,7 +48,7 @@ This file stores:
 - bank default path for common market structure: `24-month fixed -> SORA + spread`
 - grant defaults by household profile
 - levy defaults by housing type
-- fee defaults (BSD/ABSD baseline rates, legal/valuation, maintenance)
+- fee defaults (legal/valuation, maintenance; BSD and ABSD are auto-computed in app)
 
 ## Formula Reference
 
@@ -99,7 +100,7 @@ streamlit run streamlit_app.py
 ```
 
 3. In app:
-   - open `Housing economics details`
+   - open `HDB calculator`
    - run at least three scenarios:
      - SG+SG BTO
      - SG+PR resale
@@ -114,6 +115,7 @@ streamlit run streamlit_app.py
 
 - Estimator only, not legal/financial advice.
 - Defaults may drift when policy changes; verify with official Singapore sources.
+- Plus/Prime subsidy recovery rates can vary by launch/project; adjust defaults to your case.
 - Grant return and levy are modeled assumptions unless exact case rules are provided.
 - Profit output is scenario-dependent and sensitive to sale-price assumption.
 - Bank packages vary by institution and repricing date; treat 2-year fixed then SORA as a practical default, not a guarantee.

@@ -81,9 +81,17 @@ if errorlevel 1 exit /b 1
 echo.
 echo === Near-term Evaluation Gate ===
 if "%ML_ENFORCE_NEAR_TERM_GATE%"=="1" (
-  python scripts\run_forecaster_near_term_eval.py --input "%INPUT_CSV%" --enforce-gate
+  powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$p = Start-Process -FilePath 'python' -ArgumentList @('scripts\run_forecaster_near_term_eval.py','--input','%INPUT_CSV%','--enforce-gate') -PassThru -NoNewWindow; " ^
+    "$spin = @('|','/','-','\'); $i = 0; $start = Get-Date; " ^
+    "while (-not $p.HasExited) { $elapsed = [int]((Get-Date) - $start).TotalSeconds; Write-Host -NoNewline ('`r[' + $spin[$i %% 4] + '] Near-term evaluation gate running (elapsed: ' + $elapsed + 's)   '); Start-Sleep -Milliseconds 200; $i++ }; " ^
+    "if ($p.ExitCode -eq 0) { Write-Host ('`r[OK] Near-term evaluation gate finished.                             ') } else { Write-Host ('`r[ERR] Near-term evaluation gate failed.                           ') }; exit $p.ExitCode"
 ) else (
-  python scripts\run_forecaster_near_term_eval.py --input "%INPUT_CSV%"
+  powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$p = Start-Process -FilePath 'python' -ArgumentList @('scripts\run_forecaster_near_term_eval.py','--input','%INPUT_CSV%') -PassThru -NoNewWindow; " ^
+    "$spin = @('|','/','-','\'); $i = 0; $start = Get-Date; " ^
+    "while (-not $p.HasExited) { $elapsed = [int]((Get-Date) - $start).TotalSeconds; Write-Host -NoNewline ('`r[' + $spin[$i %% 4] + '] Near-term evaluation running (elapsed: ' + $elapsed + 's)   '); Start-Sleep -Milliseconds 200; $i++ }; " ^
+    "if ($p.ExitCode -eq 0) { Write-Host ('`r[OK] Near-term evaluation finished.                                  ') } else { Write-Host ('`r[ERR] Near-term evaluation failed.                                 ') }; exit $p.ExitCode"
 )
 if errorlevel 1 exit /b 1
 

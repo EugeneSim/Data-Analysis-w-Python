@@ -3,6 +3,37 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+run_with_spinner() {
+  local label="$1"
+  shift
+  local spin='-\|/'
+  local i=0
+  local start_ts
+  start_ts=$(date +%s)
+  local cmd_pid
+  "$@" &
+  cmd_pid=$!
+  while kill -0 "$cmd_pid" 2>/dev/null; do
+    local now elapsed ch
+    now=$(date +%s)
+    elapsed=$((now - start_ts))
+    ch="${spin:i++%${#spin}:1}"
+    printf "\r[%s] %s (elapsed: %ss)" "$ch" "$label" "$elapsed"
+    sleep 0.2
+  done
+  wait "$cmd_pid"
+  local rc=$?
+  local end_ts total
+  end_ts=$(date +%s)
+  total=$((end_ts - start_ts))
+  if [[ $rc -eq 0 ]]; then
+    printf "\r[✓] %s completed in %ss%*s\n" "$label" "$total" 10 ""
+  else
+    printf "\r[✗] %s failed after %ss%*s\n" "$label" "$total" 10 ""
+  fi
+  return "$rc"
+}
+
 if [[ ! -x .venv/bin/python ]]; then
   python3 -m venv .venv
 fi
@@ -92,9 +123,13 @@ PY
 echo ""
 echo "=== Near-term Evaluation Gate ==="
 if [[ "${ML_ENFORCE_NEAR_TERM_GATE:-0}" == "1" ]]; then
-  python scripts/run_forecaster_near_term_eval.py --input "$INPUT_CSV" --enforce-gate
+  run_with_spinner \
+    "Near-term evaluation gate running" \
+    python scripts/run_forecaster_near_term_eval.py --input "$INPUT_CSV" --enforce-gate
 else
-  python scripts/run_forecaster_near_term_eval.py --input "$INPUT_CSV"
+  run_with_spinner \
+    "Near-term evaluation running" \
+    python scripts/run_forecaster_near_term_eval.py --input "$INPUT_CSV"
 fi
 
 echo ""
